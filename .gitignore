@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.venv/
+backend/__pycache__/
+
+# Frontend (Vue3+TS)
+frontend/node_modules/
+frontend/dist/
+
+# Model files (large)
+bge-small-zh-v1.5/
+
+# Data & history
+knowledge_bases/
+conversation_history/
+pptimage/
+
+# IDE
+.idea/
+.vscode/
+.claude/
+
+# Env (may contain secrets)
+.env
+
+# Archives
+*.rar
+
+# Scripts
+scripts/
+
+*.pptx
