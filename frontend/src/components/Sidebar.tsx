@@ -196,7 +196,7 @@ export default function Sidebar({ open, onToggle, kbs, currentKB, onSwitchKB, on
   const [newKBInput, setNewKBInput] = useState(false)
   const [newKBName, setNewKBName] = useState('')
   const [sessions, setSessions] = useState<HistorySession[]>([])
-  const [kbExpanded, setKbExpanded] = useState(true)   // 知识库区域折叠
+  const [kbExpanded, setKbExpanded] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const refresh = () => { setRefreshKey((k) => k + 1); onRefreshKB() }

@@ -13,7 +13,6 @@ export function useChat() {
   const [sessionId, setSessionId] = useState<string>(() => localStorage.getItem(SESSION_KEY) || 'default')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showWelcome, setShowWelcome] = useState(true)
-  // 每次对话变化时递增，触发侧栏刷新
   const [sessionTick, setSessionTick] = useState(0)
 
   useEffect(() => { localStorage.setItem(SESSION_KEY, sessionId) }, [sessionId])

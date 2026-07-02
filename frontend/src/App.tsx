@@ -11,8 +11,6 @@ export default function App() {
 
   useEffect(() => { chat.loadKBList() }, [])
 
-  const isDark = document.documentElement.classList.contains('dark')
-
   return (
     <div className="h-screen flex overflow-hidden">
       {/* Collapsed sidebar strip */}

@@ -28,7 +28,7 @@ echo.
 REM ────────── Step 2: 启动后端 ──────────
 echo [Step 2/3] 启动后端服务 (端口 8001)...
 echo.
-start "Backend-API" cmd /k "cd /d %cd% && .venv\Scripts\activate.bat && cd backend && ..\.venv\Scripts\python.exe -m uvicorn backend.rag_01_app:app --host 127.0.0.1 --port 8001 --reload"
+start "Backend-API" cmd /k "cd /d %cd% && .venv\Scripts\activate.bat && cd backend && ..\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8001 --reload"
 
 REM 等待后端启动
 echo 等待后端启动...
