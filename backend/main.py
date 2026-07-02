@@ -1,20 +1,20 @@
-import sys, os, shutil, json
+import shutil, json, time
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional
 
 from backend.config import (
-    DASHSCOPE_API_KEY, DASHSCOPE_BASE_URL, QWEN_MODEL,
-    KNOWLEDGE_BASES_DIR, SUPPORTED_EXTENSIONS, HISTORY_DIR,
+    QWEN_MODEL, KNOWLEDGE_BASES_DIR, SUPPORTED_EXTENSIONS, HISTORY_DIR,
 )
 from backend.loader import list_knowledge_bases, load_documents
 from backend.chunker import build_chunks
 from backend.embedder import generate_embeddings, save_embeddings
 from backend.indexer import build_faiss_index, index_exists
 from backend.retriever import mmr_search, clear_kb_cache
-from backend.history import session_manager, ChatHistory
+from backend.history import session_manager
+from backend.prompt_builder import build_prompt, KB_DISPLAY_NAMES
+from backend.llm_client import call_llm
 
 app = FastAPI(title="Yuti RAG API", version="1.1.0")
 
@@ -27,58 +27,7 @@ app.add_middleware(
 )
 
 
-def _get_qwen_client():
-    from openai import OpenAI
-
-    if not DASHSCOPE_API_KEY:
-        raise HTTPException(status_code=500, detail="DASHSCOPE_API_KEY not configured in .env")
-    return OpenAI(api_key=DASHSCOPE_API_KEY, base_url=DASHSCOPE_BASE_URL)
-
-
-def _ask_qwen(prompt: str) -> str:
-    client = _get_qwen_client()
-    response = client.chat.completions.create(
-        model=QWEN_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        max_tokens=1024,
-    )
-    return response.choices[0].message.content
-
-
-def _build_prompt(query: str, retrieved: list[dict], history_text: str, kb_name: str = "") -> str:
-    context_parts = []
-    for i, chunk in enumerate(retrieved, 1):
-        context_parts.append(
-            f"[Reference {i}]\n"
-            f"File: {chunk.get('filename', 'unknown')}\n"
-            f"Content:\n{chunk.get('content', '')}\n"
-        )
-    context = "\n".join(context_parts)
-
-    history_section = ""
-    if history_text.strip():
-        history_section = f"\n## Conversation History\n{history_text}\n"
-
-    kb_display = KB_DISPLAY_NAMES.get(kb_name, kb_name)
-    prompt = f"""You are a knowledge base Q&A assistant specializing in Yunnan's intangible cultural heritage. Current knowledge base: [{kb_display}].
-
-{history_section}
-## Reference Context
-{context}
-
-## Question
-{query}
-
-## Rules
-1. Only answer if the question is relevant to the current knowledge base.
-2. Base your answer primarily on the reference context provided.
-3. You may supplement with your own knowledge, but no more than 30% of the answer.
-4. Cite source filenames at the end.
-5. Respond in Chinese unless asked otherwise.
-
-Answer:"""
-    return prompt
+# ── Pydantic models ──
 
 
 class ChatRequest(BaseModel):
@@ -100,20 +49,13 @@ class ChatResponse(BaseModel):
     session_id: str
 
 
-class KBInfoResponse(BaseModel):
-    name: str
-    display_name: str
-    document_count: int
-    indexed: bool
-    chunk_count: int = 0
+class CreateKBRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
 
 
-KB_DISPLAY_NAMES = {
-    "dongba": "东巴文化", "puercha": "普洱茶制作技艺", "zharan": "扎染",
-    "huobajie": "火把节", "poshuijie": "泼水节", "kongquewu": "孔雀舞",
-    "naxiguyue": "纳西古乐", "jianshuizitao": "建水紫陶",
-    "wutong": "乌铜走银", "heqingyinqi": "鹤庆银器",
-}
+class FeedbackRequest(BaseModel):
+    message_id: str = Field(...)
+    type: str = Field(...)
 
 
 @app.get("/api/health")
@@ -206,10 +148,6 @@ async def build_all_knowledge_bases():
             errors.append({"kb": kb_name, "error": str(e)})
 
     return {"status": "completed", "success": len(results), "failed": len(errors), "results": results, "errors": errors}
-
-
-class CreateKBRequest(BaseModel):
-    name: str = Field(..., min_length=1, max_length=50)
 
 
 @app.post("/api/kb/create")
@@ -335,10 +273,10 @@ async def chat(req: ChatRequest):
 
     session = session_manager.get_session(req.session_id)
     history_text = session.get_history_text(max_rounds=10)
-    prompt = _build_prompt(req.question, retrieved, history_text, req.knowledge_base)
+    prompt = build_prompt(req.question, retrieved, history_text, req.knowledge_base)
 
     try:
-        answer = _ask_qwen(prompt)
+        answer = call_llm(prompt)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM call failed: {str(e)}")
 
@@ -377,11 +315,6 @@ async def clear_history(session_id: str = "default"):
 async def delete_session(session_id: str):
     session_manager.delete_session(session_id)
     return {"status": "ok"}
-
-
-class FeedbackRequest(BaseModel):
-    message_id: str = Field(...)
-    type: str = Field(...)
 
 
 @app.post("/api/feedback")

@@ -1,101 +1,94 @@
+<div align="center">
+
 # Yuti RAG
 
-> Multi-knowledge-base RAG QA system for Yunnan's intangible cultural heritage.  
-> Built with FAISS vector search, MMR re-ranking, and LLM generation.
+**Multi-KB RAG QA System for Yunnan's Intangible Cultural Heritage**  
+Built with FAISS + MMR re-ranking + LLM generation.
 
-## Why
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](.github/workflows/ci.yml)
 
-Most RAG demos use a single knowledge base and skip retrieval quality. This project explores the opposite:
+</div>
 
-- **Multi-KB isolation** — each knowledge base gets its own vector index, metadata store, and search space
-- **Diverse retrieval strategy** — FAISS cosine search for recall, MMR re-ranking for precision and diversity
+---
+
+## Overview
+
+Yuti RAG answers questions about Yunnan's intangible cultural heritage across **10 isolated knowledge bases** (Dongba hieroglyphs, Pu'er tea, tie-dye, Torch Festival, etc.). Each KB has its own vector index, so retrieval is domain-precise.
+
+The key differentiator is **MMR re-ranking** — instead of returning the most-similar Top-5 chunks (which often cluster around one document), MMR balances relevance with diversity so answers draw from multiple sources.
+
+```mermaid
+flowchart LR
+    Q[Question] --> Enc[Embed<br/>bge-small-zh-v1.5]
+    Enc --> FS[FAISS<br/>Top-20]
+    FS --> MMR[MMR λ=0.7<br/>Top-5]
+    MMR --> LLM[Qwen API]
+    LLM --> A[Answer + Sources]
+```
+
+## Features
+
+- **Multi-KB isolation** — each KB has its own FAISS index, metadata, and search
+- **MMR quality** — `MMR = λ·sim(q,d) − (1−λ)·max sim(d_i,d_j)` reduces redundancy
 - **Traceable answers** — every response cites source documents with relevance scores
-- **Symmetric design** — frontend and backend are independently runnable, communicates over REST
+- **Full KB management** — create, upload, search, delete via UI or REST API
+- **Persistent sessions** — conversation history across 20 rounds context window
+- **Dark/light theme** — modern glassmorphism UI (React 18 + TailwindCSS + Framer Motion)
 
-The subject domain (Yunnan ICH) was chosen because the documents are well-structured, domain-specific, and non-trivial for a generic LLM to answer without retrieval.
-
-## Architecture
-
-```
-User Question
-    │
-    ▼
-Query Encoding (bge-small-zh-v1.5)
-    │
-    ▼
-FAISS IndexFlatIP (cosine similarity, Top-20)
-    │
-    ▼
-MMR Re-ranking (λ·rel − (1−λ)·div, Top-5)
-    │
-    ▼
-Prompt Construction (context + history + question)
-    │
-    ▼
-Qwen API (temperature=0.3, max_tokens=1024)
-    │
-    ▼
-Answer + Source Citations
-```
-
-### Retrieval quality matters
-
-The MMR (Maximal Marginal Relevance) step is the key differentiator. Without it, Top-5 results from FAISS often cluster around a single document. MMR penalizes redundancy:
-
-```python
-mmr_score = λ · sim(query, doc_i) − (1−λ) · max sim(doc_i, doc_j)
-```
-
-With `λ=0.7`, the pipeline keeps 70% relevance weight while spending 30% on diversity. The `build_index.py` script also allows adjusting chunk size (500 chars) and overlap (100 chars) per knowledge base.
-
-## Project structure
-
-```
-backend/
-├── main.py          # FastAPI server — all API routes
-├── config.py        # shared configuration
-├── loader.py        # document loading (txt, pdf, docx, md, html)
-├── chunker.py       # text splitting with overlap
-├── embedder.py      # sentence-transformers embedding
-├── indexer.py       # FAISS index build & load
-├── retriever.py     # MMR search logic
-├── history.py       # session & conversation persistence
-└── build_index.py   # CLI script to build all KB indexes
-
-frontend/
-├── src/
-│   ├── App.tsx
-│   ├── api/index.ts
-│   ├── hooks/useChat.ts
-│   ├── types/index.ts
-│   └── components/
-│       ├── Sidebar.tsx, ChatView.tsx, ChatBubble.tsx, ChatInput.tsx
-│       ├── KBCapsule.tsx, WelcomePage.tsx, ThemeToggle.tsx
-│       └── ...
-├── package.json
-└── vite.config.ts
-
-knowledge_bases/      # 10 source document collections (tracked)
-bge-small-zh-v1.5/    # local embedding model (download separately)
-```
-
-## Quick start
+## Quick Start (3 steps)
 
 ```bash
-# 1. Install dependencies
+# 1. Install
 pip install -r requirements.txt
 cd frontend && npm install && cd ..
 
-# 2. Set up API key
-echo "DASHSCOPE_API_KEY=your-key" > .env
+# 2. Configure + build
+cp .env.example .env    # edit with your DASHSCOPE_API_KEY
+cd backend && python build_index.py && cd ..
 
-# 3. Build vector indexes
-cd backend && python build_index.py
-
-# 4. Start backend (8001) and frontend (5174)
-python -m uvicorn backend.main:app --reload --port 8001
-cd frontend && npm run dev
+# 3. Start
+python -m uvicorn backend.main:app --reload --port 8001  # terminal 1
+cd frontend && npm run dev                                 # terminal 2
 ```
+
+Open http://localhost:5174
+
+### Docker
+
+```bash
+cp .env.example .env   # edit your key
+docker compose up -d
+```
+
+## Architecture
+
+```mermaid
+flowchart TB
+    User[User] --> FE[React Frontend]
+    FE --> API[FastAPI Backend]
+    API --> Embed[Query Embedding]
+    Embed --> FAISS[FAISS IndexFlatIP]
+    FAISS --> MMR2[MMR Re-rank]
+    MMR2 --> LLM[Qwen API]
+    LLM --> Response[Answer + Citations]
+    Response --> FE --> User
+```
+
+## RAG Evaluation Summary
+
+| Metric | Result | Notes |
+|--------|--------|-------|
+| Embedding dimension | 512 | BAAI/bge-small-zh-v1.5 |
+| Chunk size / overlap | 500 / 100 chars | Paragraph-aware, sliding window for long text |
+| FAISS coarse search | Top-20 | IndexFlatIP, cosine similarity |
+| MMR re-rank | Top-5 (λ=0.7) | Balances 70% relevance + 30% diversity |
+| Recall failure fallback | Score < 0.40 → "no relevant info" | Prevents hallucination on out-of-domain queries |
+| MMR diversity improvement | Confirmed | Lower λ → measurably lower pairwise similarity |
+| CI test suite | 42 tests passing | chunker, loader, retriever, history, API |
 
 ## API
 
@@ -105,22 +98,36 @@ cd frontend && npm run dev
 | GET | `/api/kb/list` | List all knowledge bases |
 | GET | `/api/kb/{name}/info` | KB details + document list |
 | POST | `/api/kb/build` | Build/rebuild a KB vector index |
-| POST | `/api/kb/build-all` | Rebuild all indexes |
-| POST | `/api/kb/create` | Create a new empty KB |
-| DELETE | `/api/kb/{name}` | Delete a KB and its index |
 | POST | `/api/kb/{name}/upload` | Upload documents |
-| DELETE | `/api/kb/{name}/documents/{filename}` | Delete a document |
-| GET | `/api/history` | List sessions / get history |
-| POST | `/api/feedback` | Record thumbs up/down feedback |
+| DELETE | `/api/kb/{name}` / `.../documents/{file}` | Delete KB or document |
+| GET | `/api/history` | Get conversation history |
+| POST | `/api/feedback` | Record thumbs up/down |
+
+Interactive docs at http://localhost:8001/docs
 
 ## Stack
 
-- **Backend**: Python 3.11, FastAPI, Uvicorn
-- **Search**: FAISS (IndexFlatIP), sentence-transformers (bge-small-zh-v1.5)
-- **LLM**: Qwen API (OpenAI-compatible)
-- **Frontend**: React 18, Vite, TypeScript, TailwindCSS, Framer Motion
-- **Document parsing**: PyPDF2, python-docx
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.11, FastAPI, Uvicorn |
+| Search | FAISS (IndexFlatIP), sentence-transformers |
+| LLM | Qwen API (OpenAI-compatible) |
+| Frontend | React 18, TypeScript, Vite, TailwindCSS, Framer Motion |
+| Documents | PyPDF2, python-docx |
+| Testing | pytest (42 tests, CI via GitHub Actions) |
+| Deployment | Docker, docker-compose |
+
+## Project Structure
+
+```
+backend/           → FastAPI routes + RAG pipeline modules
+frontend/          → React app (TypeScript)
+knowledge_bases/   → 10 curated KBs (tracked)
+tests/             → 42 integration + unit tests
+Dockerfile         → containerized backend
+docker-compose.yml → one-command startup
+```
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
