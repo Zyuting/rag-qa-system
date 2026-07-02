@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "yuti-rag"
+version = "1.1.0"
+description = "RAG QA System for Yunnan Intangible Cultural Heritage — multi-KB retrieval-augmented generation with FAISS + MMR + LLM"
+readme = "README.md"
+license = { file = "LICENSE" }
+keywords = ["rag", "retrieval-augmented-generation", "faiss", "nlp", "knowledge-base"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.11",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "python-dotenv>=1.0",
+    "faiss-cpu>=1.9",
+    "sentence-transformers>=3.4",
+    "numpy>=2.2",
+    "scikit-learn>=1.6",
+    "PyPDF2>=3.0",
+    "python-docx>=1.1",
+    "openai>=1.59",
+    "pandas>=2.2",
+    "tqdm>=4.67",
+]
+
+[project.urls]
+Homepage = "https://github.com/Zyuting/rag-qa-system"
+
+[project.optional-dependencies]
+dev = [
+    "mypy",
+    "pytest",
+    "pytest-cov",
+    "ruff",
+]
+eval = [
+    "ragas",
+    "datasets",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
