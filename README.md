@@ -2,14 +2,13 @@
 
 # Yuti RAG
 
-**Multi-KB RAG QA System for Yunnan's Intangible Cultural Heritage**  
-Built with FAISS + MMR re-ranking + LLM generation.
+**Multi-Knowledge-Base RAG QA System for Yunnan's Intangible Cultural Heritage**
+FAISS vector search + MMR re-ranking + LLM generation.
 
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](.github/workflows/ci.yml)
 
 </div>
 
@@ -17,42 +16,37 @@ Built with FAISS + MMR re-ranking + LLM generation.
 
 ## Overview
 
-Yuti RAG answers questions about Yunnan's intangible cultural heritage across **10 isolated knowledge bases** (Dongba hieroglyphs, Pu'er tea, tie-dye, Torch Festival, etc.). Each KB has its own vector index, so retrieval is domain-precise.
+Yuti RAG answers questions about Yunnan's intangible cultural heritage across **10 isolated knowledge bases** (Dongba hieroglyphs, Pu'er tea, tie-dye, Torch Festival, etc.). Each KB maintains its own FAISS vector index, ensuring domain-precise retrieval.
 
-The key differentiator is **MMR re-ranking** — instead of returning the most-similar Top-5 chunks (which often cluster around one document), MMR balances relevance with diversity so answers draw from multiple sources.
+The key differentiator is **MMR (Maximum Marginal Relevance) re-ranking** — instead of returning the top-5 most-similar chunks (which often cluster around one document), MMR balances relevance with diversity so answers draw from multiple sources.
 
-```mermaid
-flowchart LR
-    Q[Question] --> Enc[Embed<br/>bge-small-zh-v1.5]
-    Enc --> FS[FAISS<br/>Top-20]
-    FS --> MMR[MMR λ=0.7<br/>Top-5]
-    MMR --> LLM[Qwen API]
-    LLM --> A[Answer + Sources]
+```
+Question → Embed (bge-small-zh-v1.5) → FAISS Top-20 → MMR λ=0.7 Top-5 → LLM (Qwen) → Answer + Sources
 ```
 
 ## Features
 
-- **Multi-KB isolation** — each KB has its own FAISS index, metadata, and search
-- **MMR quality** — `MMR = λ·sim(q,d) − (1−λ)·max sim(d_i,d_j)` reduces redundancy
-- **Traceable answers** — every response cites source documents with relevance scores
-- **Full KB management** — create, upload, search, delete via UI or REST API
-- **Persistent sessions** — conversation history across 20 rounds context window
-- **Dark/light theme** — modern glassmorphism UI (React 18 + TailwindCSS + Framer Motion)
+- **Multi-KB isolation** — Each knowledge base has its own FAISS index, metadata, and search scope
+- **MMR re-ranking** — `MMR = λ·sim(q,d) − (1−λ)·max sim(d_i,d_j)` reduces redundancy in retrieved chunks
+- **Traceable answers** — Every response cites source documents with relevance scores
+- **Full KB lifecycle management** — Create, upload, search, delete via UI or REST API
+- **Persistent sessions** — Conversation history with 20-round context window
+- **Modern UI** — React 18 + TypeScript + TailwindCSS + Framer Motion, dark/light themes
 
-## Quick Start (3 steps)
+## Quick Start
 
 ```bash
-# 1. Install
+# Install
 pip install -r requirements.txt
 cd frontend && npm install && cd ..
 
-# 2. Configure + build
-cp .env.example .env    # edit with your DASHSCOPE_API_KEY
+# Configure + build index
+cp .env.example .env    # set DASHSCOPE_API_KEY
 cd backend && python build_index.py && cd ..
 
-# 3. Start
-python -m uvicorn backend.main:app --reload --port 8001  # terminal 1
-cd frontend && npm run dev                                 # terminal 2
+# Start (two terminals)
+python -m uvicorn backend.main:app --reload --port 8001
+cd frontend && npm run dev
 ```
 
 Open http://localhost:5174
@@ -60,35 +54,20 @@ Open http://localhost:5174
 ### Docker
 
 ```bash
-cp .env.example .env   # edit your key
+cp .env.example .env
 docker compose up -d
 ```
 
-## Architecture
+## Evaluation
 
-```mermaid
-flowchart TB
-    User[User] --> FE[React Frontend]
-    FE --> API[FastAPI Backend]
-    API --> Embed[Query Embedding]
-    Embed --> FAISS[FAISS IndexFlatIP]
-    FAISS --> MMR2[MMR Re-rank]
-    MMR2 --> LLM[Qwen API]
-    LLM --> Response[Answer + Citations]
-    Response --> FE --> User
-```
-
-## RAG Evaluation Summary
-
-| Metric | Result | Notes |
-|--------|--------|-------|
-| Embedding dimension | 512 | BAAI/bge-small-zh-v1.5 |
-| Chunk size / overlap | 500 / 100 chars | Paragraph-aware, sliding window for long text |
-| FAISS coarse search | Top-20 | IndexFlatIP, cosine similarity |
-| MMR re-rank | Top-5 (λ=0.7) | Balances 70% relevance + 30% diversity |
-| Recall failure fallback | Score < 0.40 → "no relevant info" | Prevents hallucination on out-of-domain queries |
-| MMR diversity improvement | Confirmed | Lower λ → measurably lower pairwise similarity |
-| CI test suite | 42 tests passing | chunker, loader, retriever, history, API |
+| Metric | Value |
+|--------|-------|
+| Embedding dimension | 512 (BAAI/bge-small-zh-v1.5) |
+| Chunk size / overlap | 500 / 100 chars |
+| FAISS coarse search | Top-20 (IndexFlatIP, cosine similarity) |
+| MMR re-rank | Top-5 (λ=0.7) |
+| Recall fallback | Score < 0.40 → "no relevant info" |
+| Test suite | 42 passing tests |
 
 ## API
 
@@ -114,19 +93,8 @@ Interactive docs at http://localhost:8001/docs
 | LLM | Qwen API (OpenAI-compatible) |
 | Frontend | React 18, TypeScript, Vite, TailwindCSS, Framer Motion |
 | Documents | PyPDF2, python-docx |
-| Testing | pytest (42 tests, CI via GitHub Actions) |
+| Testing | pytest (42 tests) |
 | Deployment | Docker, docker-compose |
-
-## Project Structure
-
-```
-backend/           → FastAPI routes + RAG pipeline modules
-frontend/          → React app (TypeScript)
-knowledge_bases/   → 10 curated KBs (tracked)
-tests/             → 42 integration + unit tests
-Dockerfile         → containerized backend
-docker-compose.yml → one-command startup
-```
 
 ## License
 
